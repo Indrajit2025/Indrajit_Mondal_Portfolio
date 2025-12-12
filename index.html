@@ -92,7 +92,11 @@
       color: var(--text);
       font-family: var(--font-body);
       overflow-x: hidden;
+      overflow-y: hidden;
       transition: background 0.5s ease, color 0.5s ease;
+    }
+    body.scroll-enabled {
+      overflow-y: auto;
     }
 
     /* --- LOADER --- */
@@ -2200,27 +2204,45 @@
   </main>
 
   <script>
+    // --- 0. INITIAL SETUP: LOCK SCROLL ---
+    // Prevent scrolling immediately when page loads
+    document.body.style.overflow = 'hidden';
+
     // --- 1. BOOT SEQUENCE ---
     const tl = gsap.timeline();
+    
+    // Only animate the loader and "Access Granted" text initially
+    // We REMOVED the hero animations from here so they don't play behind the curtain
     tl.to(".loader-progress", { width: "100%", duration: 1.5, ease: "power2.inOut" })
       .to(".loader-text", { text: "ACCESS GRANTED", duration: 0.5 })
-      .to("#loader", { y: "-100%", duration: 1, ease: "power4.inOut" })
-      .from(".hero-glitch", { y: 100, opacity: 0, duration: 1, skewY: 10 }, "-=0.5")
-      .from(".hero-sub", { opacity: 0, duration: 1 }, "-=0.5")
-      .from(".hero-photo-reactor", { scale: 0, rotation: -180, duration: 1.5, ease: "elastic.out(1, 0.5)" }, "-=1");
+      .to("#loader", { y: "-100%", duration: 1, ease: "power4.inOut" });
 
 
-        // === UNDERWATER INTRO CONTROL ===
+    // === UNDERWATER INTRO CONTROL ===
     function closeIntroOcean() {
       const intro = document.getElementById("intro-ocean");
       if (!intro) return;
 
+      // 1. Play the Hero Animations NOW (when user enters)
+      gsap.timeline()
+        .from(".hero-glitch", { y: 100, opacity: 0, duration: 1, skewY: 10 }, 0.2)
+        .from(".hero-sub", { opacity: 0, duration: 1 }, 0.2)
+        .from(".hero-photo-reactor", { scale: 0, rotation: -180, duration: 1.5, ease: "elastic.out(1, 0.5)" }, 0.2);
+
+      // 2. Fade out the Intro Overlay
       gsap.to(intro, {
         opacity: 0,
         duration: 0.8,
         ease: "power2.inOut",
         onComplete: () => {
           intro.classList.add("hidden");
+          
+          // 3. RE-ENABLE SCROLLING
+          document.body.style.overflow = ''; 
+          
+          // 4. START SYSTEMS
+          initLenis();         // Start smooth scroll
+          setupHorizontalScroll(); // Calculate scroll triggers
         }
       });
     }
@@ -2252,20 +2274,25 @@
       }, 3000);
     });
 
-    // --- 3. SMOOTH SCROLL ---
-    const lenis = new Lenis({
-      duration: 1.2,
-      easing: (t) => Math.min(1, 1.001 - Math.pow(2, -10 * t)),
-      direction: 'vertical',
-      smooth: true
-    });
-    function raf(time) {
-      lenis.raf(time);
+    // --- 3. SMOOTH SCROLL (Wrapped in Function) ---
+    let lenis; // Define globally
+
+    function initLenis() {
+      lenis = new Lenis({
+        duration: 1.2,
+        easing: (t) => Math.min(1, 1.001 - Math.pow(2, -10 * t)),
+        direction: 'vertical',
+        smooth: true
+      });
+
+      function raf(time) {
+        lenis.raf(time);
+        requestAnimationFrame(raf);
+      }
       requestAnimationFrame(raf);
     }
-    requestAnimationFrame(raf);
+    // Note: initLenis() is now called inside closeIntroOcean()
 
-    // --- 4. HORIZONTAL SCROLL TRIGGER ---
     // --- 4. HORIZONTAL SCROLL TRIGGER ---
     gsap.registerPlugin(ScrollTrigger);
 
@@ -2279,6 +2306,7 @@
         horizontalScrollAnim = null;
       }
 
+      // Only run if screen is wide enough
       if (window.innerWidth > 900) {
         const sections = gsap.utils.toArray(".scroll-slide");
 
@@ -2290,11 +2318,12 @@
             pin: true,
             scrub: 1,
             snap: 1 / (sections.length - 1),
+            // Recalculate end point dynamically
             end: () => "+=" + document.querySelector(".scroll-section-outer").offsetWidth
           }
         });
       } else {
-        // Make sure anything related to that section is cleaned on small screens
+        // Cleanup for mobile
         ScrollTrigger.getAll().forEach(st => {
           if (st.trigger && st.trigger.classList.contains("scroll-section-outer")) {
             st.kill();
@@ -2303,12 +2332,19 @@
       }
     }
 
-    // Run once on load
-    setupHorizontalScroll();
+    // REMOVED: Immediate call to setupHorizontalScroll();
 
-    // Re-run when resizing (switching between mobile / laptop widths)
+    // Re-run when resizing
     window.addEventListener("resize", () => {
-      setupHorizontalScroll();
+      // Only recalculate if Lenis is active (meaning we are inside the site)
+      if(lenis) {
+          setupHorizontalScroll();
+      }
+      
+      // Update Three.js camera
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
     });
 
 
@@ -2381,7 +2417,7 @@
       cursorX = event.clientX;
       cursorY = event.clientY;
 
-      // Update Three.js Variables (Fix for background lag)
+      // Update Three.js Variables
       mouseX = event.clientX - window.innerWidth / 2;
       mouseY = event.clientY - window.innerHeight / 2;
     });
@@ -2395,8 +2431,11 @@
       followY += (cursorY - followY) * 0.15;
 
       const cursor = document.getElementById("cursor-main");
-      cursor.style.left = followX + "px";
-      cursor.style.top = followY + "px";
+      // Check if cursor element exists to avoid errors
+      if (cursor) {
+          cursor.style.left = followX + "px";
+          cursor.style.top = followY + "px";
+      }
 
       requestAnimationFrame(animateCursor);
     }
@@ -2419,7 +2458,7 @@
         const centerX = rect.width / 2;
         const centerY = rect.height / 2;
 
-        const rotateX = ((y - centerY) / centerY) * -15; // Increased tilt
+        const rotateX = ((y - centerY) / centerY) * -15; 
         const rotateY = ((x - centerX) / centerX) * 15;
 
         card.style.transform = `perspective(1000px) rotateX(${rotateX}deg) rotateY(${rotateY}deg) scale(1.02)`;
@@ -2436,21 +2475,13 @@
       const currentTheme = body.getAttribute('data-theme');
       if (currentTheme === 'dark') {
         body.setAttribute('data-theme', 'light');
-        // Make particles dark in light mode so they are visible
-        particlesMaterial.color.setHex(0x1a202c);
+        particlesMaterial.color.setHex(0x002aff);
       } else {
         body.setAttribute('data-theme', 'dark');
-        // Revert to neon blue in dark mode
         particlesMaterial.color.setHex(0x00f3ff);
       }
     }
-
-    window.addEventListener('resize', () => {
-      camera.aspect = window.innerWidth / window.innerHeight;
-      camera.updateProjectionMatrix();
-      renderer.setSize(window.innerWidth, window.innerHeight);
-    });
-  </script>
+</script>
 </body>
 
 </html>
