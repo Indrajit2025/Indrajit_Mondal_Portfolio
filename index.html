@@ -171,6 +171,7 @@
       opacity: 0;
       visibility: hidden;
       pointer-events: none;
+      display: none;
       transition: opacity 0.8s ease, visibility 0.8s ease;
     }
 
@@ -2390,7 +2391,7 @@
       </div>
 
       <div style="margin-top: 50px;">
-  <h2 style="font-size: 4rem; margin-bottom: 40px;">CONTACT ME ( ͡° ͜ʖ ͡°)</h2>
+  <h2 style="font-size: 4rem; margin-bottom: 40px;">CONTACT ME </h2>
   
   <div class="contact-links-container">
     <a href="mailto:indrajitlaptop2025@gmail.com" class="sci-fi-btn hover-trigger">
@@ -2455,8 +2456,8 @@
         onComplete: () => {
           intro.classList.add("hidden");
           
-          // 3. RE-ENABLE SCROLLING
-          document.body.style.overflow = ''; 
+          document.body.style.overflow = 'auto'; 
+          document.body.style.overflowY = 'auto';
           
           // 4. START SYSTEMS
           initLenis();         // Start smooth scroll
